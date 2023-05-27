@@ -1,0 +1,27 @@
+{
+  "name": "bsi-review-scraper",
+  "version": "1.0.0",
+  "description": "scrape user reviews from google play store and apple app store",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fahmiam2/bsi-sentiment-topic-modelling.git"
+  },
+  "keywords": [
+    "scraper"
+  ],
+  "author": "fahmiam",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/fahmiam2/bsi-sentiment-topic-modelling/issues"
+  },
+  "homepage": "https://github.com/fahmiam2/bsi-sentiment-topic-modelling#readme",
+  "dependencies": {
+    "app-store-scraper": "^0.17.0",
+    "google-play-scraper": "^9.1.1",
+    "mongodb": "^5.5.0"
+  }
+}
