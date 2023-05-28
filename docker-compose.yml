@@ -3,7 +3,7 @@ services:
   app:
     build: 
       context: .
-      dockerfile: ./data/scraper/Dockerfile
+      dockerfile: ./src/data/scraper/Dockerfile
     volumes:
       - .:/app
     depends_on:

@@ -6,7 +6,7 @@ FROM node:18
 WORKDIR /app
 
 # Copy package.json and package-lock.json
-COPY ./data/scraper/package*.json ./
+COPY ./src/data/scraper/package*.json ./
 
 # Install any needed packages
 RUN npm install
