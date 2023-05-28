@@ -2,81 +2,188 @@ const gplay = require('google-play-scraper');
 const fs = require('fs');
 const config = require('./config.js');
 const MongoClient = require('mongodb').MongoClient;
+const path = require('path');
 
-async function getReviews(appId) {
+// Function to invoke the first scraper when the document is not available in the database
+async function firstScraper() {
+  try {
+    const result = await gplay.reviews({
+      appId: config.googlePlay.appId,
+      sort: gplay.sort.NEWEST,
+      num: 30000,
+      country: 'id'
+    });
+
+    return result;
+  } catch (error) {
+    console.log('Error during first scraper:', error);
+    throw error;
+  }
+}
+
+// Function to change column names and add additional columns to the reviews data
+function transformData(result, sourceApp, scrapedAt) {
+  const reviews = result.data; // Access the array of reviews from the 'data' property
+
+  console.log('Reviews:', reviews); // Log the reviews data
+  console.log('Type of reviews:', typeof reviews); // Log the type of reviews
+
+  return reviews.map(review => ({
+    reviewAppId: review.id,
+    reviewDatetime: review.date,
+    userUrl: review.url,
+    replyDatetime: review.replyDate,
+    sourceApp,
+    scrapedAt,
+    ...review
+  }));
+}
+
+// Function to ingest data into MongoDB and export JSON file
+async function ingestData(reviews, sourceApp, scrapedDateAt) {
   const mongoUrl = config.mongoDB.mongoUrl;
   const dbName = config.mongoDB.dbName;
   const collectionName = config.mongoDB.collectionName;
-
-  let reviews = [];
-  let page = 0;
+  const filePath = `./data/raw/reviews_gplay_${scrapedDateAt}.json`;
 
   try {
     const client = await MongoClient.connect(mongoUrl);
     const db = client.db(dbName);
     const collection = db.collection(collectionName);
 
-    // Check if the collection is empty (no existing documents)
-    const count = await collection.countDocuments();
-    if (count === 0) {
-      console.log('No existing documents in the collection. Starting scraping...');
-    } else {
-      console.log('Existing documents found in the collection. Skipping scraping...');
-    }
+    const reviewIds = reviews.map(review => review.reviewAppId); // Extracting the review IDs from the reviews
 
-    while (true) {
+    // Find existing documents with the same IDs in the collection
+    const existingDocuments = await collection.find({ reviewAppId: { $in: reviewIds } }).toArray();
+
+    // Filter out the reviews that have already been ingested
+    const filteredReviews = reviews.filter(review => !existingDocuments.some(doc => doc.reviewAppId === review.reviewAppId));
+
+    // Insert new documents into the collection
+    await collection.insertMany(filteredReviews);
+
+    try {
+      // Create the directory if it doesn't exist
+      const directory = path.dirname(filePath);
+      if (!fs.existsSync(directory)) {
+        fs.mkdirSync(directory, { recursive: true });
+      }
+  
+      // Export reviews data as JSON
+      fs.writeFileSync(filePath, JSON.stringify(filteredReviews));
+  
+      console.log(`Data exported as JSON: ${filePath}`);
+    } catch (error) {
+      console.log('Error during data ingestion:', error);
+    }
+    console.log(`Data ingested into MongoDB and exported as JSON: ${filePath}`);
+
+    client.close(); // Close the MongoDB connection
+
+  } catch (error) {
+    console.log('Error during data ingestion:', error);
+  }
+}
+
+// Function to get the last datetime from the database for a given source
+async function getLastDatetime(sourceApp) {
+  const mongoUrl = config.mongoDB.mongoUrl;
+  const dbName = config.mongoDB.dbName;
+  const collectionName = config.mongoDB.collectionName;
+
+  try {
+    const client = await MongoClient.connect(mongoUrl);
+    const db = client.db(dbName);
+    const collection = db.collection(collectionName);
+
+    // Find the most recent document with the given source
+    const query = { sourceApp };
+    const sort = { reviewDatetime: -1 };
+    const projection = { reviewDatetime: 1 };
+    const options = { limit: 1 };
+    const result = await collection.findOne(query, { sort, projection, ...options });
+
+    if (result) {
+      return result.reviewDatetime;
+    }
+  } catch (error) {
+    console.log('Error while fetching last datetime from MongoDB:', error);
+  }
+
+  return null;
+}
+
+// Function to scrape reviews data using pagination
+async function paginationScraper(lastDatetime) {
+  let page = 0;
+  let stopScraping = false;
+  const sourceApp = 'google play store';
+  const scrapedAt = new Date().toISOString();
+
+  while (!stopScraping) {
+    try {
       const result = await gplay.reviews({
-        appId: appId,
-        page: page,
+        appId: config.googlePlay.appId,
+        page,
         sort: gplay.sort.NEWEST,
       });
 
-      if (result.length === 0) {
-        break;
+      if (!Array.isArray(result)) {
+        console.log('Invalid result from pagination scraper. Expected an array:', result);
+        throw new Error('Invalid result from pagination scraper');
       }
 
-      const existingReviews = await collection.find({
-        date: { $in: result.map(review => review.date) },
-        source: 'google-play-store'
-      }).toArray();
+      const transformedData = transformData(result, sourceApp, scrapedAt);
 
-      if (existingReviews.length > 0) {
-        console.log('Existing reviews found. Stopping scraping...');
-        break;
-      }
-
-      const newReviews = result.filter(review => {
-        return !existingReviews.some(existingReview =>
-          existingReview.date === review.date &&
-          existingReview.source === 'google-play-store'
-        );
-      });
-
-      const reviewsWithMetadata = newReviews.map(review => ({
-        ...review,
-        scrapeDatetime: new Date(),
-        source: 'google-play-store'
-      }));
-
-      if (reviewsWithMetadata.length > 0) {
-        console.log(`Inserting ${reviewsWithMetadata.length} new reviews into MongoDB...`);
-        await collection.insertMany(reviewsWithMetadata);
+      // Check if the current review's datetime is less than or equal to the last datetime in the database
+      if (result.length > 0 && result[result.length - 1].date <= lastDatetime) {
+        stopScraping = true;
+        console.log('Reached the last datetime in the database. Stopping pagination scraping.');
       } else {
-        console.log('No new reviews to insert into MongoDB.');
+        // Ingest the transformed data into MongoDB
+        await ingestData(transformedData, sourceApp, scrapedDateAt);
+        page++;
       }
-
-      reviews = reviews.concat(newReviews);
-      page++;
+    } catch (error) {
+      console.log('Error during pagination scraper:', error);
+      throw error;
     }
-
-    client.close();
-  } catch (error) {
-    console.log("Error fetching or inserting reviews:", error);
   }
-
-  return reviews;
 }
 
-getReviews(config.googlePlay.appId).then((reviews) => {
-  fs.writeFileSync('./data/raw/reviews_gplay.json', JSON.stringify(reviews));
-});
+// Main function to check document availability and perform scraping accordingly
+async function scrapeReviews() {
+  try {
+    const sourceApp = 'google play store';
+    const lastDatetime = await getLastDatetime(sourceApp);
+
+    console.log('Last datetime in the database:', lastDatetime);
+
+    let scrapedAt, scrapedDateAt, result, transformedData;
+
+    if (lastDatetime) {
+      console.log('Existing documents found in the collection. Continuing scraping...');
+      scrapedAt = new Date().toISOString();
+      scrapedDateAt = scrapedAt.split('T')[0];
+      result = await paginationScraper(lastDatetime);
+    } else {
+      console.log('No existing documents in the collection. Starting scraping...');
+      scrapedAt = new Date().toISOString();
+      scrapedDateAt = scrapedAt.split('T')[0];
+      result = await firstScraper();
+    }
+
+    transformedData = transformData(result, sourceApp, scrapedAt);
+
+    // Ingest the transformed data into MongoDB
+    await ingestData(transformedData, sourceApp, scrapedDateAt);
+
+    console.log('Scraping completed.');
+  } catch (error) {
+    console.log('Error during scraping:', error);
+    throw error;
+  }
+}
+
+// Invoke the main function to start scraping
+scrapeReviews().catch(error => console.log('Error during scraping:', error));
