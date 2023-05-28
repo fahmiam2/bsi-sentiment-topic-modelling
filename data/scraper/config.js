@@ -1,12 +1,12 @@
 module.exports = {
     googlePlay: {
-        appId: 'bsi.mobile.app.id',
+        appId: 'com.bsm.activity2',
     },
     appleAppStore : {
         appId: 'co.id.BSM-Mobile.MII'
     },
     mongoDB: {
-        url: 'mongodb://db:27017/',
+        mongoUrl: 'mongodb://db:27017/',
         dbName: 'appReviews',
         collectionName: 'reviews',
     },
