@@ -25,7 +25,11 @@ __pycache__/
 # C extensions
 *.so
 
+# python environment
+mongo-topic-sentiment-project/
+
 # Distribution / packaging
+config.py
 .Python
 build/
 develop-eggs/
