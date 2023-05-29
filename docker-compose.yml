@@ -14,11 +14,11 @@ services:
       - ./data/database:/data/db
     ports:
       - 27017:27017
-  # python_app:
-  #   build:
-  #     context: .
-  #     dockerfile: PythonDockerfile
-  #   volumes:
-  #     - .:/app
-  #   depends_on:
-  #     - db
+  python_app:
+    build:
+      context: .
+      dockerfile: ./src/data/scraper/PythonDockerfile
+    volumes:
+      - .:/app
+    depends_on:
+      - db
