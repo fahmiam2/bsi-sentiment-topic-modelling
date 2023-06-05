@@ -30,9 +30,9 @@ function transformData(result, sourceApp, scrapedAt) {
 
   return reviews.map(review => ({
     reviewAppId: review.id,
-    reviewDatetime: review.date,
+    reviewDatetime: new Date(review.date).toISOString(),
     userUrl: review.url,
-    replyDatetime: review.replyDate,
+    replyDatetime: new Date(review.replyDate).toISOString(),
     sourceApp,
     scrapedAt,
     ...review

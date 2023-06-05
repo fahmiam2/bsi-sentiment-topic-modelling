@@ -29,11 +29,11 @@ function transformData(result, sourceApp, scrapedAt) {
 
     return reviews.map(({ id, date, userImage, replyDate, replyText, ...review }) => ({
         reviewAppId: id,
-        reviewDatetime: date || scrapedAt,
+        reviewDatetime: (new Date(date).toISOString() || scrapedAt), // Convert date string into datetime format
         sourceApp,
         scrapedAt,
         userImage: userImage || null,
-        replyDate: replyDate || null,
+        replyDate: new Date(replyDate).toISOString() || null,
         replyText: replyText || null,
         ...review
     }));
