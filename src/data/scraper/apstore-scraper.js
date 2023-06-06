@@ -22,21 +22,26 @@ async function firstScraper() {
 
 // Function to change column names and add additional columns to the reviews data
 function transformData(result, sourceApp, scrapedAt) {
-    const reviews = result; // Access the array of reviews from the 'data' property
+  const reviews = result;
 
-    console.log('Reviews:', reviews); // Log the reviews data
-    console.log('Type of reviews:', typeof reviews); // Log the type of reviews
+  console.log('Reviews:', reviews);
+  console.log('Type of reviews:', typeof reviews);
 
-    return reviews.map(({ id, date, userImage, replyDate, replyText, ...review }) => ({
-        reviewAppId: id,
-        reviewDatetime: (new Date(date).toISOString() || scrapedAt), // Convert date string into datetime format
-        sourceApp,
-        scrapedAt,
-        userImage: userImage || null,
-        replyDate: new Date(replyDate).toISOString() || null,
-        replyText: replyText || null,
-        ...review
-    }));
+  return reviews.map(({ id, date, userImage, replyDate, replyText, ...review }) => {
+    const reviewDatetime = new Date(date);
+    const isValidDate = reviewDatetime instanceof Date && !isNaN(reviewDatetime);
+
+    return {
+      reviewAppId: id,
+      reviewDatetime: isValidDate ? reviewDatetime.toISOString() : scrapedAt,
+      sourceApp,
+      scrapedAt,
+      userImage: userImage || null,
+      replyDate: replyDate ? new Date(replyDate).toISOString() : null,
+      replyText: replyText || null,
+      ...review,
+    };
+  });
 }
 
 // Function to ingest data into MongoDB and export JSON file
