@@ -12,7 +12,7 @@ COPY ./src/data/scraper/package*.json ./
 RUN npm install
 
 # Copy the rest of the application
-COPY . .
+COPY ./src/data/scraper .
 
 # Make port 8080 available to the world outside this container (optional)
 EXPOSE 8080
@@ -21,4 +21,4 @@ EXPOSE 8080
 ENV NAME=app
 
 # Run index.js when the container launches
-CMD ["node", "data/scraper/index.js"]
+CMD ["node", "index.js"]
