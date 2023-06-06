@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: ./src/data/scraper/Dockerfile
     volumes:
-      - ./src:/app/src
+      - ./src/data/scraper:/app/data/scraper  # Adjust the volume mapping for index.js
     depends_on:
       - db
   db:
@@ -14,11 +14,11 @@ services:
       - ./data/database:/data/db
     ports:
       - 27017:27017
-  # python_app:
-  #   build:
-  #     context: .
-  #     dockerfile: ./src/data/Dockerfile
-  #   volumes:
-  #     - ./src:/app
-  #   depends_on:
-  #     - db
+  python_app:
+    build:
+      context: .
+      dockerfile: ./src/data/Dockerfile
+    volumes:
+      - ./src/data:/app/src/data  # Adjust the volume mapping for retrieve_data.py
+    depends_on:
+      - db
