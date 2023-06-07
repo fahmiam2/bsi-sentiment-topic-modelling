@@ -10,11 +10,11 @@ COPY ./requirements.txt .
 # Install the Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the retrieve_data.py script into the container
-COPY ./src/data/retrieve_data.py ./
+# Copy the retrieve_labelling_data.py script into the container
+COPY ./src/data/retrieve_labelling_data.py ./
 
 # Set the environment variable for the config file path
 ENV CONFIG_PATH=/app/config.py
 
-# Run the retrieve_data.py script
-CMD [ "python", "retrieve_data.py" ]
+# Run the retrieve_labelling_data.py script
+CMD [ "python", "retrieve_labelling_data.py" ]
