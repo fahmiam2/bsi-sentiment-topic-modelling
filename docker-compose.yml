@@ -20,5 +20,7 @@ services:
       dockerfile: ./src/data/Dockerfile
     volumes:
       - ./src/data:/app/src/data  # Adjust the volume mapping for retrieve_data.py
+      - ./data/raw:/app/data/raw  # Adjust the volume mapping for retrieve_labelling_data.py
     depends_on:
       - db
+    command: python /app/src/data/retrieve_labelling_data.py  # Run the retrieve_labelling_data.py script
