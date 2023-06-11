@@ -25,7 +25,7 @@ async function firstScraper() {
 function transformData(result, sourceApp, scrapedAt) {
   const reviews = result.data; // Access the array of reviews from the 'data' property
 
-  console.log('Reviews:', reviews); // Log the reviews data
+  // console.log('Reviews:', reviews); // Log the reviews data
   console.log('Type of reviews:', typeof reviews); // Log the type of reviews
 
   return reviews.map(review => ({
@@ -128,20 +128,22 @@ async function paginationScraper(lastDatetime) {
         sort: gplay.sort.NEWEST,
       });
 
-      if (!Array.isArray(result)) {
-        console.log('Invalid result from pagination scraper. Expected an array:', result);
+      if (!Array.isArray(result.data)) {
+        console.log('Invalid result from pagination scraper. Expected an array:', result.data);
         throw new Error('Invalid result from pagination scraper');
       }
 
+      const scrapedDateAt = scrapedAt.split('T')[0];
       const transformedData = transformData(result, sourceApp, scrapedAt);
 
       // Check if the current review's datetime is less than or equal to the last datetime in the database
-      if (result.length > 0 && result[result.length - 1].date <= lastDatetime) {
+      if (result.data.length > 0 && new Date(result.data[result.data.length - 1].date) <= lastDatetime) {
         stopScraping = true;
         console.log('Reached the last datetime in the database. Stopping pagination scraping.');
       } else {
         // Ingest the transformed data into MongoDB
         await ingestData(transformedData, sourceApp, scrapedDateAt);
+
         page++;
       }
     } catch (error) {
@@ -151,6 +153,7 @@ async function paginationScraper(lastDatetime) {
   }
 }
 
+
 // Main function to check document availability and perform scraping accordingly
 async function scrapeReviews() {
   try {
@@ -159,24 +162,21 @@ async function scrapeReviews() {
 
     console.log('Last datetime in the database:', lastDatetime);
 
-    let scrapedAt, scrapedDateAt, result, transformedData;
+    let scrapedAt;
 
     if (lastDatetime) {
       console.log('Existing documents found in the collection. Continuing scraping...');
-      scrapedAt = new Date().toISOString();
-      scrapedDateAt = scrapedAt.split('T')[0];
-      result = await paginationScraper(lastDatetime);
+      await paginationScraper(lastDatetime);
     } else {
       console.log('No existing documents in the collection. Starting scraping...');
       scrapedAt = new Date().toISOString();
-      scrapedDateAt = scrapedAt.split('T')[0];
-      result = await firstScraper();
+      const result = await firstScraper();
+      const scrapedDateAt = scrapedAt.split('T')[0];
+      const transformedData = transformData(result, sourceApp, scrapedAt);
+
+      // Ingest the transformed data into MongoDB
+      await ingestData(transformedData, sourceApp, scrapedDateAt);
     }
-
-    transformedData = transformData(result, sourceApp, scrapedAt);
-
-    // Ingest the transformed data into MongoDB
-    await ingestData(transformedData, sourceApp, scrapedDateAt);
 
     console.log('Scraping completed.');
   } catch (error) {
