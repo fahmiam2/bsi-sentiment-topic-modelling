@@ -112,11 +112,23 @@ class DataLabeller:
 
         return df, label_inset_counts, label_inset_score_counts
 
-# Usage example
-data_labeller = DataLabeller("../data/raw/unlabelled_data.json", "../data/inset-lexicon/positive.tsv",
-                             "../data/inset-lexicon/negative.tsv", "mongodb://localhost:27017")
-df, label_inset_counts, label_inset_score_counts = data_labeller.label_data_pipeline("your_collection_name")
+if __name__ == "__main__":
+    # this is an example to proceed this script
+    # Connection details
+    mongo_uri = "mongodb://localhost:27017"  # Replace with your MongoDB URI
+    db_name = "your_database_name"  # Replace with your database name
+    collection_name = "your_collection_name"  # Replace with your collection name
 
-print(df)
-print(label_inset_counts)
-print(label_inset_score_counts)
+    # Example usage
+    data_labeller = DataLabeller("../data/raw/unlabelled_data.json", "../data/inset-lexicon/positive.tsv",
+                                 "../data/inset-lexicon/negative.tsv", mongo_uri)
+    df, label_inset_counts, label_inset_score_counts = data_labeller.label_data_pipeline()
+
+    # Ingest data into MongoDB
+    json_data = data_labeller.convert_to_json(df)
+    data_labeller.ingest_data_to_mongodb(json_data, collection_name)
+
+    # Print the resulting DataFrame and counts
+    print(df)
+    print(label_inset_counts)
+    print(label_inset_score_counts)
