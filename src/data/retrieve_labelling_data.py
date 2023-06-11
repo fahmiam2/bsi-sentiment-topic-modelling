@@ -64,7 +64,7 @@ def main():
     process_labelling_data(labelling_data)
 
     # Export labelling data as JSON
-    file_path = r"/app/data/raw/labelling_data.json"
+    file_path = r"/app/data/raw/unlabelled_data.json"
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     export_data_as_json(labelling_data, file_path)
 
