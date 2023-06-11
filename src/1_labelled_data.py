@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import logging
 import json
 import re
 import string
@@ -9,6 +10,9 @@ from nltk.corpus import stopwords
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
 from pymongo import MongoClient
+
+# Set-up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class DataLabeller:
     def __init__(self, unlabelled_data_file, positive_lexicon_file, negative_lexicon_file, mongodb_uri):
@@ -95,40 +99,52 @@ class DataLabeller:
         collection.insert_many(json_data)
 
     def label_data_pipeline(self):
-        df = self.load_unlabelled_data()
+        try:
+            df = self.load_unlabelled_data()
 
-        df['text_clean'] = df['text'].apply(self.preprocess_text)
-        df['text_preprocessed'] = df['text_clean'].apply(self.tokenize_text)
-        df['text_preprocessed'] = df['text_preprocessed'].apply(self.filter_stopwords)
-        df["text_preprocessed_stemmed"] = df["text_preprocessed"].apply(self.stem_text)
+            df['text_clean'] = df['text'].apply(self.preprocess_text)
+            df['text_preprocessed'] = df['text_clean'].apply(self.tokenize_text)
+            df['text_preprocessed'] = df['text_preprocessed'].apply(self.filter_stopwords)
+            df["text_preprocessed_stemmed"] = df["text_preprocessed"].apply(self.stem_text)
 
-        positive_weights = self.load_lexicon(self.positive_lexicon_file)
-        negative_weights = self.load_lexicon(self.negative_lexicon_file)
+            positive_weights = self.load_lexicon(self.positive_lexicon_file)
+            negative_weights = self.load_lexicon(self.negative_lexicon_file)
 
-        df = self.label_data(df, positive_weights, negative_weights)  # Update this line
+            df = self.label_data(df, positive_weights, negative_weights)  # Update this line
 
-        label_inset_counts = df.groupby("label_inset")["id"].count()
-        label_inset_score_counts = df.groupby("label_inset_score")["id"].count()
+            label_inset_counts = df.groupby("label_inset")["id"].count()
+            label_inset_score_counts = df.groupby("label_inset_score")["id"].count()
 
-        return df, label_inset_counts, label_inset_score_counts
+            return df, label_inset_counts, label_inset_score_counts
+        
+        except Exception as e:
+            logging.error("An error occurred during the label_data_pipeline: %s", str(e))
+            return None, None, None
 
 if __name__ == "__main__":
-    # this is an example to proceed this script
-    # Connection details
-    mongo_uri = "mongodb://localhost:27017"  # Replace with your MongoDB URI
-    db_name = "your_database_name"  # Replace with your database name
-    collection_name = "your_collection_name"  # Replace with your collection name
+    try:
+        # Connection details
+        mongo_uri = "mongodb://localhost:27017"  # Replace with your MongoDB URI
+        db_name = "your_database_name"  # Replace with your database name
+        collection_name = "your_collection_name"  # Replace with your collection name
 
-    # Example usage
-    data_labeller = DataLabeller("../data/raw/unlabelled_data.json", "../data/inset-lexicon/positive.tsv",
-                                 "../data/inset-lexicon/negative.tsv", mongo_uri)
-    df, label_inset_counts, label_inset_score_counts = data_labeller.label_data_pipeline()
+        # Example usage
+        data_labeller = DataLabeller("../data/raw/unlabelled_data.json", "../data/inset-lexicon/positive.tsv",
+                                     "../data/inset-lexicon/negative.tsv", mongo_uri)
+        df, label_inset_counts, label_inset_score_counts = data_labeller.label_data_pipeline()
 
-    # Ingest data into MongoDB
-    json_data = data_labeller.convert_to_json(df)
-    data_labeller.ingest_data_to_mongodb(json_data, collection_name)
+        if df is not None:
+            # Ingest data into MongoDB
+            json_data = data_labeller.convert_to_json(df)
+            data_labeller.ingest_data_to_mongodb(json_data, collection_name)
+            logging.info("Data ingested into MongoDB successfully.")
 
-    # Print the resulting DataFrame and counts
-    print(df)
-    print(label_inset_counts)
-    print(label_inset_score_counts)
+            # Print the resulting DataFrame and counts
+            print(df)
+            print(label_inset_counts)
+            print(label_inset_score_counts)
+        else:
+            logging.error("Labeling process failed. Check the error logs for more details.")
+
+    except Exception as e:
+        logging.error("An error occurred during the execution: %s", str(e))
