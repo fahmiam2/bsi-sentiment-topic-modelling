@@ -126,22 +126,34 @@ async function paginationScraper(lastDatetime) {
   const scrapedAt = new Date().toISOString();
 
   while (!stopScraping) {
-    const result = await appStore.reviews({
-      appId: config.appleAppStore.appId,
-      page,
-      sort: appStore.sort.NEWEST,
-    });
+    try {
+      const result = await appStore.reviews({
+        appId: config.appleAppStore.appId,
+        page,
+        sort: appStore.sort.NEWEST,
+      });
 
-    const transformedData = transformData(result, sourceApp, scrapedAt);
-
-    // Check if the current review's datetime is less than or equal to the last datetime in the database
-    if (result.length > 0 && result[result.length - 1].date <= lastDatetime) {
-      stopScraping = true;
-      console.log('Reached the last datetime in the database. Stopping pagination scraping.');
-    } else {
-      // Ingest the transformed data into MongoDB
-      await ingestData(transformedData, sourceApp, scrapedAt);
-      page++;
+      if (!Array.isArray(result.data)) {
+        console.log('Invalid result from pagination scraper. Expected an array:', result.data);
+        throw new Error('Invalid result from pagination scraper');
+      }
+  
+      const scrapedDateAt = scrapedAt.split('T')[0];
+      const transformedData = transformData(result, sourceApp, scrapedAt);
+  
+      // Check if the current review's datetime is less than or equal to the last datetime in the database
+      if (result.data.length > 0 && new Date(result.data[result.data.length - 1].date) <= lastDatetime) {
+        stopScraping = true;
+        console.log('Reached the last datetime in the database. Stopping pagination scraping.');
+      } else {
+        // Ingest the transformed data into MongoDB
+        await ingestData(transformedData, sourceApp, scrapedDateAt);
+        
+        page++;
+      }
+    } catch (error) {
+      console.log('Error during pagination scraper:', error);
+      throw error;
     }
   }
 }
@@ -152,24 +164,23 @@ async function scrapeReviews() {
         const sourceApp = 'apple app store';
         const lastDatetime = await getLastDatetime(sourceApp);
 
-        let scrapedAt, scrapedDateAt, result, transformedData;
+        console.log('Last datetime in the database:', lastDatetime);
+
+        let scrapedAt;
 
         if (lastDatetime) {
             console.log('Existing documents found in the collection. Continuing scraping...');
-            scrapedAt = new Date().toISOString();
-            scrapedDateAt = scrapedAt.split('T')[0];
-            result = await paginationScraper(lastDatetime);
+            await paginationScraper(lastDatetime);
         } else {
             console.log('No existing documents in the collection. Starting scraping...');
             scrapedAt = new Date().toISOString();
             scrapedDateAt = scrapedAt.split('T')[0];
             result = await firstScraper();
+            transformedData = transformData(result, sourceApp, scrapedAt);
+
+            // Ingest the transformed data into MongoDB
+            await ingestData(transformedData, sourceApp, scrapedDateAt);
         }
-
-        transformedData = transformData(result, sourceApp, scrapedAt);
-
-        // Ingest the transformed data into MongoDB
-        await ingestData(transformedData, sourceApp, scrapedDateAt);
 
         console.log('Scraping completed.');
     } catch (error) {
